@@ -45,6 +45,55 @@ fn choosing_and_placing_stamps() {
 }
 
 #[test]
+fn flatten_stamps_button_persists_comments_and_keeps_form_fields() {
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "it").unwrap();
+        app.open_bytes("form.pdf", None, include_bytes!("data/form.pdf").to_vec()).unwrap();
+        app.set_option("zoom", "150").unwrap();
+        app
+    });
+    h.run_steps(6);
+    assert!(h.state_mut().execute("comment.stamp"));
+    h.run_steps(2);
+
+    let add = |shape| {
+        pdfcraft_engine::Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
+            page: 0,
+            style: pdfcraft_engine::Style::default_for(&shape),
+            shape,
+            contents: String::new(),
+            author: "Ada".into(),
+        })
+    };
+    h.state_mut().apply_edit(add(pdfcraft_engine::Shape::Stamp {
+        rect: [100.0, 100.0, 260.0, 142.0],
+        stamp: pdfcraft_engine::StampKind::Approved,
+        by: None,
+    }));
+    h.state_mut().apply_edit(add(pdfcraft_engine::Shape::Rectangle { rect: [20.0, 20.0, 60.0, 60.0] }));
+    h.run_steps(3);
+
+    let form_fields: Vec<_> = h.state().session.get(h.state().views[0].id).unwrap().form.iter().map(|field| field.name.clone()).collect();
+    assert!(!form_fields.is_empty());
+    h.get_by_label("Incolla timbri").click();
+    h.run_steps(5);
+
+    let app = h.state();
+    let id = app.views[0].id;
+    let doc = app.session.get(id).unwrap();
+    assert_eq!(doc.form.iter().map(|field| field.name.clone()).collect::<Vec<_>>(), form_fields);
+    assert!(!doc.info.annotations.iter().any(|a| matches!(a.subtype.as_str(), "Stamp" | "Square")));
+
+    let bytes = app.session.save_bytes(id).unwrap();
+    let mut reopened = pdfcraft_engine::Session::new();
+    let reopened_id = reopened.open("reopened.pdf", None, bytes, None).unwrap();
+    let reopened_doc = reopened.get(reopened_id).unwrap();
+    assert_eq!(reopened_doc.form.iter().map(|field| field.name.clone()).collect::<Vec<_>>(), form_fields);
+    assert!(!reopened_doc.info.annotations.iter().any(|a| matches!(a.subtype.as_str(), "Stamp" | "Square")));
+}
+
+#[test]
 fn natural_image_stamps_keep_displayed_bounds_on_rotated_pages() {
     for degrees in [0, 90, 180, 270] {
         let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {

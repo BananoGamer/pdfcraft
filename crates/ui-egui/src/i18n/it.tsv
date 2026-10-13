@@ -198,6 +198,8 @@
 	Attach a file	Allega un file
 	Erase drawings	Cancella disegni
 	Flatten comments	Appiattisci commenti
+	Flatten stamps	Incolla timbri
+	Flattens stamps and all other visible comments into page content. Form fields stay interactive.	Incorpora i timbri e tutti gli altri commenti visibili nel contenuto della pagina. I campi del modulo restano interattivi.
 	Import comments…	Importa commenti…
 	Add a stamp	Aggiungi un timbro
 	Export all comments to data file…	Esporta tutti i commenti in un file di dati…
