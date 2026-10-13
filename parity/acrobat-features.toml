@@ -4182,10 +4182,10 @@ area = "E"
 tier = "P1"
 milestone = "M5"
 status = "shipped"
-commands = ["comment.flatten"]
-tools = ["doc_flatten"]
-evidence = ["crates/edit/src/tests.rs::flattening_draws_appearances_into_the_page_and_removes_the_comments", "crates/engine/src/tests.rs::flattening_keeps_the_look_and_drops_the_objects", "crates/automation/tests/automation.rs::flattening_through_tools"]
-notes = "appearances become page content; pop-ups and replies removed"
+commands = ["comment.flatten", "comment.flatten_stamps"]
+tools = ["doc_flatten", "doc_flatten_stamps"]
+evidence = ["crates/edit/src/tests.rs::flattening_draws_appearances_into_the_page_and_removes_the_comments", "crates/engine/src/tests.rs::flattening_keeps_the_look_and_drops_the_objects", "crates/automation/tests/automation.rs::flattening_through_tools", "crates/ui-egui/tests/stamps.rs::flatten_stamps_tool_follows_stamp_in_all_tools_and_keeps_form_fields"]
+notes = "appearances become page content; pop-ups and replies removed. “Flatten stamps” (“Incolla timbri” in Italian) is a top-level entry in All tools immediately after Add a stamp, and remains available in Add comments ▸ Review and automation. It flattens visible comments while leaving form fields interactive."
 
 [[feature]]
 id = "comment.migrate"

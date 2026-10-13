@@ -45,7 +45,7 @@ fn choosing_and_placing_stamps() {
 }
 
 #[test]
-fn flatten_stamps_button_persists_comments_and_keeps_form_fields() {
+fn flatten_stamps_tool_follows_stamp_in_all_tools_and_keeps_form_fields() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "it").unwrap();
@@ -54,8 +54,6 @@ fn flatten_stamps_button_persists_comments_and_keeps_form_fields() {
         app
     });
     h.run_steps(6);
-    assert!(h.state_mut().execute("comment.stamp"));
-    h.run_steps(2);
 
     let add = |shape| {
         pdfcraft_engine::Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
@@ -76,7 +74,16 @@ fn flatten_stamps_button_persists_comments_and_keeps_form_fields() {
 
     let form_fields: Vec<_> = h.state().session.get(h.state().views[0].id).unwrap().form.iter().map(|field| field.name.clone()).collect();
     assert!(!form_fields.is_empty());
+    assert_eq!(h.state().left, pdfcraft_ui_egui::LeftPanel::AllTools);
+    h.get_by_label("View more").click();
+    h.run_steps(3);
+    let stamp = h.get_by_label("Aggiungi un timbro").rect();
+    let flatten = h.get_by_label("Incolla timbri").rect();
+    assert!(flatten.top() >= stamp.bottom() && flatten.top() - stamp.bottom() < 8.0, "flatten stamps should follow the stamp tool: {stamp:?} then {flatten:?}");
     h.get_by_label("Incolla timbri").click();
+    h.run_steps(5);
+    assert_eq!(h.state().left, pdfcraft_ui_egui::LeftPanel::Tool("flatten_stamps"));
+    h.get_all_by_label("Incolla timbri").last().expect("flatten stamps action").click();
     h.run_steps(5);
 
     let app = h.state();

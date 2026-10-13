@@ -295,6 +295,9 @@ impl PdfCraftApp {
             "comment.flatten" => {
                 self.apply_edit(Edit::Flatten { comments: true, fields: false });
             }
+            "comment.flatten_stamps" => {
+                self.apply_edit(Edit::Flatten { comments: true, fields: false });
+            }
             "form.flatten" => {
                 // Flatten what's typed in a field too (#166); a refused value flattens nothing.
                 if self.commit_form_typing() {

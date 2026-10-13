@@ -360,6 +360,7 @@ impl Automation {
                 }
                 self.apply(&a, Edit::Flatten { comments, fields })?
             }
+            "doc_flatten_stamps" => self.apply(&a, Edit::Flatten { comments: true, fields: false })?,
             "doc_reduce" => {
                 let id = self.doc(&a)?.id;
                 let before = self.doc(&a)?.bytes.len();

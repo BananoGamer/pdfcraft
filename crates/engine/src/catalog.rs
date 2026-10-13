@@ -234,6 +234,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 items: &[
                     item("Comment list", "message-square-text", "comment.list", Ready),
                     item("Flatten comments", "layers", "comment.flatten", Ready),
+                    item("Flatten stamps", "stamp", "comment.flatten_stamps", Ready),
                 ],
             },
         ],
@@ -361,6 +362,15 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         badge: None,
         availability: Ready,
         sections: &[ToolSection { title: "Stamps", items: &[item("Stamp palette", "stamp", "comment.stamp", Ready)] }],
+    },
+    ToolGroup {
+        id: "flatten_stamps",
+        label: "Flatten stamps",
+        icon: "stamp",
+        hue: PURPLE,
+        badge: None,
+        availability: Ready,
+        sections: &[ToolSection { title: "Stamps", items: &[item("Flatten stamps", "stamp", "comment.flatten_stamps", Ready)] }],
     },
     ToolGroup {
         id: "certificate",

@@ -2810,10 +2810,24 @@ fn flattening_through_tools() {
     let dir = workdir("flatten");
     let mut a = auto(&dir);
     let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    ok(&mut a, "comment_add", json!({ "doc": doc, "page": 1, "type": "stamp", "stamp": "approved", "at": [100, 100] }));
     ok(&mut a, "comment_add", json!({ "doc": doc, "page": 1, "type": "textbox", "rect": [10, 200, 190, 240], "contents": "Approved" }));
-    ok(&mut a, "doc_flatten", json!({ "doc": doc }));
+    ok(&mut a, "form_add_field", json!({ "doc": doc, "page": 1, "type": "text", "rect": [20, 120, 180, 142] }));
+    ok(&mut a, "doc_flatten_stamps", json!({ "doc": doc }));
     assert_eq!(ok(&mut a, "comment_list", json!({ "doc": doc }))["count"], 0);
+    assert_eq!(
+        ok(&mut a, "form_fields", json!({ "doc": doc }))["fields"].as_array().unwrap().len(),
+        1,
+        "form field remains interactive"
+    );
     assert!(page_text(&mut a, doc)[0].contains("Approved"), "the text box is now page text");
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "flattened.pdf" }));
+    let reopened = ok(&mut a, "doc_open", json!({ "path": "flattened.pdf" }))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "comment_list", json!({ "doc": reopened }))["count"], 0);
+    assert_eq!(
+        ok(&mut a, "form_fields", json!({ "doc": reopened }))["fields"].as_array().unwrap().len(),
+        1
+    );
     assert!(matches!(a.call("doc_flatten", &json!({ "doc": doc, "comments": false, "fields": false })), Err(ToolError::InvalidArgs(_))));
 }
 

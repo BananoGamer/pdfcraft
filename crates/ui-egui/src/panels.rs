@@ -338,13 +338,6 @@ fn stamp_palette(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         crate::stamps_ui::palette_section(app, ui, t);
     });
-    ui.add_space(8.0);
-    if widgets::pill_button(ui, tl!("Flatten stamps"), false)
-        .on_hover_text(tl!("Flattens stamps and all other visible comments into page content. Form fields stay interactive."))
-        .clicked()
-    {
-        app.run_command("comment.flatten");
-    }
 }
 
 /// Edit a PDF ▸ Format text: for the selected added text (one undoable change), or the style
