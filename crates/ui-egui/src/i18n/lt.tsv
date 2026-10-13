@@ -1585,6 +1585,22 @@
 	Move object	Perkelti objektą
 	Move objects	Perkelti objektus
 	All tools	Visi įrankiai
+	Edit tools	Redaguoti įrankius
+	Done editing tools	Baigti įrankių redagavimą
+	Customize {tool}	Tinkinti {tool}
+	Drag to reorder tools	Tempkite, kad pakeistumėte įrankių tvarką
+	Tool icon	Įrankio piktograma
+	Use default icon	Naudoti numatytąją piktogramą
+	Tool color	Įrankio spalva
+	Use default color	Naudoti numatytąją spalvą
+	Blue	Mėlyna
+	Teal	Žalsvai mėlyna
+	Green	Žalia
+	Orange	Oranžinė
+	Red	Raudona
+	Purple	Violetinė
+	Pink	Rožinė
+	Slate	Šiferio pilka
 	Read	Skaityti
 	E-Sign	Pasirašyti
 	Tools	Įrankiai

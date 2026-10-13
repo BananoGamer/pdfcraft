@@ -539,6 +539,89 @@ fn persistence_round_trips_and_tolerates_garbage() {
     assert_eq!(b.theme, pdfcraft_ui_egui::theme::ThemeKind::Dark);
 }
 
+#[test]
+fn all_tools_preferences_persist_and_reject_unknown_catalog_entries() {
+    let mut app = PdfCraftApp::new();
+    app.restore(
+        r#"{"tool_preferences":{
+            "order":["stamp","edit","stamp","unknown"],
+            "customizations":{
+                "stamp":{"icon":"camera","color":3},
+                "edit":{"icon":"not-an-icon","color":99},
+                "unknown":{"icon":"check","color":0}
+            },
+            "comments_panel_closed":true,
+            "right_panel_closed":true
+        }}"#,
+    );
+    let saved: serde_json::Value = serde_json::from_str(&app.persist()).expect("settings serialize");
+    let prefs = &saved["tool_preferences"];
+    assert_eq!(prefs["order"][0], "stamp");
+    assert_eq!(prefs["order"][1], "edit");
+    assert_eq!(prefs["order"].as_array().map(Vec::len), Some(pdfcraft_engine::catalog::TOOL_GROUPS.len()));
+    assert_eq!(prefs["customizations"]["stamp"]["icon"], "camera");
+    assert_eq!(prefs["customizations"]["stamp"]["color"], 3);
+    assert!(prefs["customizations"].get("edit").is_none(), "invalid icon and color are ignored");
+    assert!(prefs["customizations"].get("unknown").is_none(), "unknown tools are ignored");
+    assert_eq!(prefs["comments_panel_closed"], true);
+    assert_eq!(prefs["right_panel_closed"], true);
+
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    let restored: serde_json::Value = serde_json::from_str(&restored.persist()).expect("restored settings serialize");
+    assert_eq!(&restored["tool_preferences"], prefs);
+}
+
+#[test]
+fn all_tools_edit_mode_customizes_a_tool_and_exits() {
+    let mut h = harness(|_| {});
+    h.get_by_label("Edit tools").click();
+    h.run_steps(2);
+    h.get_by_label("Customize Export a PDF").click();
+    h.run_steps(2);
+    h.get_by_label("Tool icon");
+    h.get_by_label("Tool color");
+    h.get_by_label("camera").click();
+    h.run_steps(2);
+    h.get_by_label("Red").click();
+    h.run_steps(2);
+
+    let saved: serde_json::Value = serde_json::from_str(&h.state().persist()).expect("settings serialize");
+    let customized = &saved["tool_preferences"]["customizations"]["export"];
+    assert_eq!(customized["icon"], "camera");
+    assert_eq!(customized["color"], 4);
+
+    h.get_by_label("Done editing tools").click();
+    h.run_steps(2);
+    h.get_by_label("Edit tools");
+    assert!(h.query_by_label("Tool icon").is_none());
+}
+
+#[test]
+fn all_tools_can_be_reordered_by_dragging_the_handle() {
+    let mut h = harness(|_| {});
+    h.get_by_label("Edit tools").click();
+    h.run_steps(2);
+    let text = painted_text(&h);
+    let first = text.iter().find(|(label, ..)| label == "Export a PDF").expect("first tool row is visible").2;
+    let second = text.iter().find(|(label, ..)| label == "Fill & Sign").expect("second tool row is visible").2;
+    let handle_x = first.left() - 26.0;
+    let from = egui::pos2(handle_x, first.center().y);
+    let to = egui::pos2(handle_x, second.center().y);
+    h.hover_at(from);
+    h.run_steps(1);
+    h.drag_at(from);
+    h.run_steps(1);
+    h.hover_at(to);
+    h.run_steps(1);
+    h.drop_at(to);
+    h.run_steps(2);
+
+    let saved: serde_json::Value = serde_json::from_str(&h.state().persist()).expect("settings serialize");
+    assert_eq!(saved["tool_preferences"]["order"][0], "fill_sign");
+    assert_eq!(saved["tool_preferences"]["order"][1], "export");
+}
+
 /// A tool's saved "no fill" (`"fill": null`) clears a fill it had as its default; a missing or
 /// malformed fill keeps it (#340).
 #[test]

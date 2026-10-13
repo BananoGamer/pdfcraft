@@ -240,6 +240,22 @@ key	Space	Mezerník
 	Dark gray theme	Tmavě šedý motiv
 	Light theme	Světlý motiv
 	All tools	Všechny nástroje
+	Edit tools	Upravit nástroje
+	Done editing tools	Dokončit úpravy nástrojů
+	Customize {tool}	Přizpůsobit {tool}
+	Drag to reorder tools	Přetažením přeuspořádáte nástroje
+	Tool icon	Ikona nástroje
+	Use default icon	Použít výchozí ikonu
+	Tool color	Barva nástroje
+	Use default color	Použít výchozí barvu
+	Blue	Modrá
+	Teal	Tyrkysová
+	Green	Zelená
+	Orange	Oranžová
+	Red	Červená
+	Purple	Fialová
+	Pink	Růžová
+	Slate	Břidlicová
 	Read	Čtení
 	Convert	Převod
 	E-Sign	E-podpis

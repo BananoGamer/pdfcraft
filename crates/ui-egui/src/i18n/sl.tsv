@@ -186,6 +186,22 @@
 	All pages in document	Vse strani v dokumentu
 	All pages in range	Vse strani v obsegu
 	All tools	Vsa orodja
+	Edit tools	Uredi orodja
+	Done editing tools	Konec urejanja orodij
+	Customize {tool}	Prilagodi orodje {tool}
+	Drag to reorder tools	Povlecite za spremembo vrstnega reda orodij
+	Tool icon	Ikona orodja
+	Use default icon	Uporabi privzeto ikono
+	Tool color	Barva orodja
+	Use default color	Uporabi privzeto barvo
+	Blue	Modra
+	Teal	Turkizna
+	Green	Zelena
+	Orange	Oranžna
+	Red	Rdeča
+	Purple	Vijolična
+	Pink	Rožnata
+	Slate	Skrilasto siva
 	Allow Rich Text Formatting	Dovoli oblikovano besedilo (Rich Text)
 	Allow user to enter custom text	Uporabniku dovoli vnos poljubnega besedila
 	Allowed	Dovoljeno

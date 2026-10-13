@@ -111,6 +111,22 @@
 	Dark theme	Тёмная тема
 	Appearance settings…	Настройки оформления…
 	All tools	Все инструменты
+	Edit tools	Редактировать инструменты
+	Done editing tools	Завершить редактирование инструментов
+	Customize {tool}	Настроить инструмент «{tool}»
+	Drag to reorder tools	Перетащите, чтобы изменить порядок инструментов
+	Tool icon	Значок инструмента
+	Use default icon	Использовать значок по умолчанию
+	Tool color	Цвет инструмента
+	Use default color	Использовать цвет по умолчанию
+	Blue	Синий
+	Teal	Бирюзовый
+	Green	Зелёный
+	Orange	Оранжевый
+	Red	Красный
+	Purple	Фиолетовый
+	Pink	Розовый
+	Slate	Серо-синий
 	Read	Чтение
 	Convert	Конвертация
 	E-Sign	Электронная подпись

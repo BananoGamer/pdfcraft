@@ -6,12 +6,53 @@ use pdfcraft_engine::catalog::{self, Availability, TOOL_GROUPS, ToolGroup};
 use pdfcraft_render::{DocInfo, FieldKind, OutlineItem};
 
 use crate::theme::{self, Tokens};
-use crate::{LeftPanel, PdfCraftApp, RightPanel, icons, widgets};
+use crate::{LeftPanel, PdfCraftApp, RightPanel, ToolCustomization, icons, widgets};
 
 const COLLAPSED_TOOLS: usize = 14;
 
+struct ToolColor {
+    label: &'static str,
+    rgb: [u8; 3],
+}
+
+const TOOL_COLORS: [ToolColor; 8] = [
+    ToolColor { label: "Blue", rgb: [68, 133, 218] },
+    ToolColor { label: "Teal", rgb: [44, 151, 145] },
+    ToolColor { label: "Green", rgb: [83, 153, 93] },
+    ToolColor { label: "Orange", rgb: [211, 130, 53] },
+    ToolColor { label: "Red", rgb: [202, 81, 83] },
+    ToolColor { label: "Purple", rgb: [139, 104, 191] },
+    ToolColor { label: "Pink", rgb: [190, 91, 139] },
+    ToolColor { label: "Slate", rgb: [104, 119, 139] },
+];
+
+pub(crate) const TOOL_COLOR_COUNT: usize = TOOL_COLORS.len();
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ToolDrag(String);
+
 fn hue(g: &ToolGroup) -> Color32 {
     Color32::from_rgb(g.hue[0], g.hue[1], g.hue[2])
+}
+
+fn tool_hue(g: &ToolGroup, customization: &ToolCustomization) -> Color32 {
+    customization.color.and_then(|i| TOOL_COLORS.get(usize::from(i))).map_or_else(|| hue(g), |c| Color32::from_rgb(c.rgb[0], c.rgb[1], c.rgb[2]))
+}
+
+pub(crate) fn tool_order(app: &PdfCraftApp) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut order = Vec::with_capacity(TOOL_GROUPS.len());
+    for id in &app.all_tools_order {
+        if catalog::group(id).is_some() && seen.insert(id.as_str()) {
+            order.push(id.clone());
+        }
+    }
+    for group in TOOL_GROUPS {
+        if seen.insert(group.id) {
+            order.push(group.id.to_owned());
+        }
+    }
+    order
 }
 
 pub fn left_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
@@ -28,18 +69,32 @@ pub fn left_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     );
 }
 
-fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool) -> (bool, bool) {
+fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool, editing: Option<bool>) -> (bool, bool, bool) {
     let mut go_back = false;
     let mut close = false;
+    let mut toggle_editing = false;
     ui.horizontal(|ui| {
         if back && icons::button(ui, "chevron-left", 26.0, false, tl!("Back to all tools")).clicked() {
             go_back = true;
         }
         // Reserve space for Close before laying out the translated title. Long tool names
         // must never expand the fixed-width sidebar or push the Close control off-screen.
-        let title_width = (ui.available_width() - 26.0 - ui.spacing().item_spacing.x).max(1.0);
+        let buttons = 1 + usize::from(editing.is_some());
+        let title_width = (ui.available_width() - 26.0 * buttons as f32 - ui.spacing().item_spacing.x * buttons as f32).max(1.0);
         ui.add_sized([title_width, 26.0], egui::Label::new(egui::RichText::new(tl!(title)).font(theme::semibold(15.5)).color(t.text)).truncate())
             .on_hover_text(tl!(title));
+        if let Some(is_editing) = editing
+            && icons::button(
+                ui,
+                if is_editing { "check" } else { "pencil" },
+                26.0,
+                is_editing,
+                tl!(if is_editing { "Done editing tools" } else { "Edit tools" }),
+            )
+            .clicked()
+        {
+            toggle_editing = true;
+        }
         if icons::button(ui, "x", 26.0, false, tl!("Close panel")).clicked() {
             close = true;
         }
@@ -47,22 +102,42 @@ fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool) -> (bool
     ui.add_space(2.0);
     ui.separator();
     ui.add_space(4.0);
-    (go_back, close)
+    (go_back, close, toggle_editing)
 }
 
 fn all_tools(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    let (_, close) = panel_header(ui, t, "All tools", false);
+    let (_, close, toggle_editing) = panel_header(ui, t, "All tools", false, Some(app.all_tools_editing));
+    if toggle_editing {
+        app.all_tools_editing = !app.all_tools_editing;
+        app.editing_tool = None;
+    }
     if close {
         app.left_open = false;
     }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let shown = if app.all_tools_expanded { TOOL_GROUPS.len() } else { COLLAPSED_TOOLS.min(TOOL_GROUPS.len()) };
-        for g in &TOOL_GROUPS[..shown] {
-            if tool_row(ui, t, g).clicked() {
-                app.select_tool(g.id);
+        let order = tool_order(app);
+        let shown = if app.all_tools_editing || app.all_tools_expanded { order.len() } else { COLLAPSED_TOOLS.min(order.len()) };
+        for id in order.iter().take(shown) {
+            let Some(g) = catalog::group(id) else { continue };
+            if app.all_tools_editing {
+                if let Some((dragged, target, after)) = editable_tool_row(app, ui, t, g) {
+                    move_tool(app, &dragged, &target, after);
+                }
+                if app.editing_tool.as_deref() == Some(g.id) {
+                    customize_tool(ui, t, g, app);
+                }
+            } else {
+                let customization = app.tool_customizations.get(g.id).cloned().unwrap_or_default();
+                let icon = customization.icon.as_deref().unwrap_or(g.icon);
+                if tool_row(ui, t, g, icon, tool_hue(g, &customization)).clicked() {
+                    app.select_tool(g.id);
+                }
             }
         }
         ui.add_space(4.0);
+        if app.all_tools_editing {
+            return;
+        }
         let more = if app.all_tools_expanded { "View less" } else { "View more" };
         if ui
             .add(
@@ -78,6 +153,136 @@ fn all_tools(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     });
 }
 
+fn move_tool(app: &mut PdfCraftApp, dragged: &str, target: &str, after: bool) {
+    if dragged == target || catalog::group(dragged).is_none() || catalog::group(target).is_none() {
+        return;
+    }
+    let mut order = tool_order(app);
+    let Some(from) = order.iter().position(|id| id == dragged) else { return };
+    let item = order.remove(from);
+    let Some(target_at) = order.iter().position(|id| id == target) else { return };
+    let to = target_at + usize::from(after);
+    order.insert(to.min(order.len()), item);
+    app.all_tools_order = order;
+}
+
+fn editable_tool_row(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> Option<(String, String, bool)> {
+    let customization = app.tool_customizations.get(g.id).cloned().unwrap_or_default();
+    let icon = customization.icon.as_deref().unwrap_or(g.icon);
+    let color = tool_hue(g, &customization);
+    let row_id = ui.id().with(("all-tools-row", g.id));
+    let grip_id = ui.id().with(("all-tools-grip", g.id));
+    let inner = ui.horizontal(|ui| {
+        let source = ui.dnd_drag_source(grip_id, ToolDrag(g.id.to_owned()), |ui| {
+            let (grip_rect, grip) = ui.allocate_exact_size(vec2(22.0, 34.0), Sense::hover());
+            if g.id == "export" { eprintln!("GRIP {grip_rect:?}"); }
+            icons::paint(ui, grip_rect, "move", 15.0, if grip.hovered() { t.text_muted } else { t.text_faint });
+        });
+        if source.response.drag_started() {
+            eprintln!("START {}", g.id);
+        }
+        source.response.on_hover_cursor(egui::CursorIcon::Grab).on_hover_text(tl!("Drag to reorder tools"));
+        icons::paint(ui, Rect::from_min_size(ui.cursor().min + vec2(0.0, 7.0), vec2(20.0, 20.0)), icon, 19.0, color);
+        ui.add_space(4.0);
+        let label_width = (ui.available_width() - 26.0 - ui.spacing().item_spacing.x).max(1.0);
+        ui.add_sized([label_width, 34.0], egui::Label::new(egui::RichText::new(tl!(g.label)).font(theme::regular(13.5)).color(t.text)).truncate())
+            .on_hover_text(tl!(g.label));
+        let label = crate::i18n::fmt(tl!("Customize {tool}"), &[("tool", tl!(g.label))]);
+        icons::button(ui, "pencil", 26.0, app.editing_tool.as_deref() == Some(g.id), &label).clicked()
+    });
+    if inner.inner {
+        app.editing_tool = if app.editing_tool.as_deref() == Some(g.id) { None } else { Some(g.id.to_owned()) };
+    }
+    let response = ui.interact(inner.response.rect, row_id, Sense::hover());
+    if let Some(payload) = egui::DragAndDrop::payload::<ToolDrag>(ui.ctx()) {
+        eprintln!("PAYLOAD {} row {} hovered={} released={}", payload.0, g.id, response.hovered(), ui.ctx().input(|input| input.pointer.any_released()));
+    }
+    if let Some(dragged) = response.dnd_hover_payload::<ToolDrag>()
+        && dragged.0 != g.id
+    {
+        let pos = ui.ctx().pointer_latest_pos().unwrap_or(response.rect.center());
+        let y = if pos.y < response.rect.center().y { response.rect.top() } else { response.rect.bottom() };
+        ui.painter().hline(response.rect.x_range(), y, Stroke::new(2.0, t.accent));
+    }
+    if let Some(dragged) = response.dnd_release_payload::<ToolDrag>()
+        && dragged.0 != g.id
+    {
+        let pos = ui.ctx().pointer_latest_pos().unwrap_or(response.rect.center());
+        return Some((dragged.0.clone(), g.id.to_owned(), pos.y >= response.rect.center().y));
+    }
+    None
+}
+
+fn customize_tool(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup, app: &mut PdfCraftApp) {
+    let customization = app.tool_customizations.get(g.id).cloned().unwrap_or_default();
+    egui::Frame::NONE.fill(t.card).corner_radius(CornerRadius::same(6)).inner_margin(egui::Margin::symmetric(8, 6)).show(ui, |ui| {
+        ui.label(egui::RichText::new(tl!("Tool icon")).font(theme::medium(11.5)).color(t.text_muted));
+        static ICON_NAMES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+        let names = ICON_NAMES.get_or_init(|| {
+            let mut names: Vec<&str> = crate::icon_data::ICONS.iter().map(|(name, _)| *name).collect();
+            names.sort_unstable();
+            names
+        });
+        egui::ScrollArea::vertical().max_height(112.0).auto_shrink([false, true]).show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for name in names {
+                    let selected = customization.icon.as_deref().unwrap_or(g.icon) == *name;
+                    if icons::button(ui, name, 25.0, selected, name).clicked() {
+                        set_tool_icon(app, g.id, (*name != g.icon).then(|| (*name).to_owned()));
+                    }
+                }
+            });
+        });
+        if customization.icon.is_some() && ui.button(tl!("Use default icon")).clicked() {
+            set_tool_icon(app, g.id, None);
+        }
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(tl!("Tool color")).font(theme::medium(11.5)).color(t.text_muted));
+        ui.horizontal_wrapped(|ui| {
+            for (index, choice) in TOOL_COLORS.iter().enumerate() {
+                let response = color_swatch(ui, choice, customization.color == Some(index as u8));
+                if response.clicked() {
+                    set_tool_color(app, g.id, Some(index as u8));
+                }
+            }
+        });
+        if customization.color.is_some() && ui.button(tl!("Use default color")).clicked() {
+            set_tool_color(app, g.id, None);
+        }
+    });
+}
+
+fn set_tool_icon(app: &mut PdfCraftApp, id: &str, icon: Option<String>) {
+    let customization = app.tool_customizations.entry(id.to_owned()).or_default();
+    customization.icon = icon;
+    if customization.icon.is_none() && customization.color.is_none() {
+        app.tool_customizations.remove(id);
+    }
+}
+
+fn set_tool_color(app: &mut PdfCraftApp, id: &str, color: Option<u8>) {
+    let customization = app.tool_customizations.entry(id.to_owned()).or_default();
+    customization.color = color;
+    if customization.icon.is_none() && customization.color.is_none() {
+        app.tool_customizations.remove(id);
+    }
+}
+
+fn color_swatch(ui: &mut egui::Ui, choice: &ToolColor, selected: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(choice.label)));
+    let center = rect.center();
+    let color = Color32::from_rgb(choice.rgb[0], choice.rgb[1], choice.rgb[2]);
+    ui.painter().circle_filled(center, 8.0, color);
+    let tokens = Tokens::get(ui.ctx());
+    ui.painter().circle_stroke(
+        center,
+        9.0,
+        Stroke::new(if selected { 2.0 } else { 1.0 }, if selected { tokens.accent } else { Color32::from_gray(140) }),
+    );
+    response.on_hover_text(tl!(choice.label))
+}
+
 /// Draw a one-line row label without painting into the status chip or beyond the sidebar.
 /// Accessibility retains the complete name through the row's WidgetInfo.
 fn row_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: Color32, left_center: egui::Pos2, max_width: f32) -> bool {
@@ -89,13 +294,13 @@ fn row_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: Color32, 
     elided
 }
 
-fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
+fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup, icon: &str, color: Color32) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(g.label)));
     let press = theme::Press::track(ui, &resp);
     press.wash(ui, rect, 6, false);
     let body = rect.translate(press.offset());
-    icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, 7.0), vec2(20.0, 20.0)), g.icon, 19.0, hue(g));
+    icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, 7.0), vec2(20.0, 20.0)), icon, 19.0, color);
     let right_reserved = match (g.badge, g.availability) {
         (Some(b), _) => ui.fonts_mut(|f| f.layout_no_wrap(tl!(b).to_owned(), theme::semibold(9.5), Color32::WHITE).size().x) + 26.0,
         (None, Availability::Planned(m)) if resp.hovered() => {
@@ -137,7 +342,7 @@ fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
 }
 
 fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static ToolGroup) {
-    let (back, close) = panel_header(ui, t, g.label, true);
+    let (back, close, _) = panel_header(ui, t, g.label, true, None);
     if back {
         app.left = LeftPanel::AllTools;
         app.mode = crate::Mode::AllTools;
@@ -1438,5 +1643,29 @@ mod bookmark_filter {
         // A child match keeps its parent: [0] and [0, 0].
         assert_eq!(outline_matches(&outline, &fold("KIŞ")).len(), 2);
         assert!(outline_matches(&outline, &fold("izmir")).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod tool_customization {
+    use super::{move_tool, tool_order};
+    use crate::PdfCraftApp;
+    use pdfcraft_engine::catalog::TOOL_GROUPS;
+
+    #[test]
+    fn tool_order_is_complete_unique_and_reorderable() {
+        let mut app = PdfCraftApp::new();
+        let initial = tool_order(&app);
+        assert_eq!(initial.len(), TOOL_GROUPS.len());
+        let first = TOOL_GROUPS.first().expect("catalog has tools").id;
+        let last = TOOL_GROUPS.last().expect("catalog has tools").id;
+        move_tool(&mut app, first, last, true);
+        let moved = tool_order(&app);
+        assert_eq!(moved.len(), TOOL_GROUPS.len());
+        assert_eq!(moved.last().map(String::as_str), Some(first));
+        assert_eq!(moved.iter().collect::<std::collections::BTreeSet<_>>().len(), TOOL_GROUPS.len());
+
+        move_tool(&mut app, "unknown", last, false);
+        assert_eq!(tool_order(&app), moved, "invalid catalog ids do not change the order");
     }
 }

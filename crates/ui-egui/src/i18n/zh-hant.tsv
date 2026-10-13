@@ -1726,6 +1726,22 @@
 	Search tools and commands…	搜尋工具與指令…
 	No matching tools	找不到符合的工具
 	All tools	所有工具
+	Edit tools	編輯工具
+	Done editing tools	完成工具編輯
+	Customize {tool}	自訂{tool}
+	Drag to reorder tools	拖曳以重新排列工具
+	Tool icon	工具圖示
+	Use default icon	使用預設圖示
+	Tool color	工具顏色
+	Use default color	使用預設顏色
+	Blue	藍色
+	Teal	藍綠色
+	Green	綠色
+	Orange	橘色
+	Red	紅色
+	Purple	紫色
+	Pink	粉紅色
+	Slate	石板灰
 	Read	閱讀
 	Convert	轉換
 	E-Sign	電子簽署

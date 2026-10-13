@@ -465,6 +465,12 @@ pub struct RecentFile {
     pub size: usize,
 }
 
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ToolCustomization {
+    pub icon: Option<String>,
+    pub color: Option<u8>,
+}
+
 pub struct PdfCraftApp {
     pub docking: docking::Workspace,
     pub(crate) pending_panel_reveals: Vec<docking::Panel>,
@@ -548,6 +554,10 @@ pub struct PdfCraftApp {
     pub palette_open: bool,
     pub palette_query: String,
     pub all_tools_expanded: bool,
+    pub(crate) all_tools_editing: bool,
+    pub(crate) all_tools_order: Vec<String>,
+    pub(crate) tool_customizations: std::collections::BTreeMap<String, ToolCustomization>,
+    pub(crate) editing_tool: Option<String>,
     pub recent: Vec<RecentFile>,
     /// Preferences: reopen the files that were open when PdfCraft last closed (#442).
     pub reopen_last_session: bool,
@@ -903,6 +913,10 @@ impl PdfCraftApp {
             palette_open: false,
             palette_query: String::new(),
             all_tools_expanded: false,
+            all_tools_editing: false,
+            all_tools_order: Vec::new(),
+            tool_customizations: Default::default(),
+            editing_tool: None,
             recent: Vec::new(),
             reopen_last_session: false,
             last_session: Default::default(),
@@ -2074,6 +2088,12 @@ impl PdfCraftApp {
     /// Serialize the user's persistent state (recent files, theme). Local only.
     pub fn persist(&self) -> String {
         let trusted: Vec<String> = self.session.trusted_certificates().iter().map(pdfcraft_engine::sign::x509::to_pem).collect();
+        let tool_preferences = serde_json::json!({
+            "order": panels::tool_order(self),
+            "customizations": self.tool_customizations,
+            "comments_panel_closed": self.comments_panel_closed,
+            "right_panel_closed": self.right_panel_closed,
+        });
         serde_json::json!({
             "docking": self.docking,
             "docking_left_open": self.left_open,
@@ -2131,8 +2151,7 @@ impl PdfCraftApp {
             "combine_columns": self.combine_columns.to_json(),
             "combine_view": self.combine_view.as_str(),
             "combine_zoom": self.combine_zoom,
-            "comments_panel_closed": self.comments_panel_closed,
-            "right_panel_closed": self.right_panel_closed,
+            "tool_preferences": tool_preferences,
         })
         .to_string()
     }
@@ -2194,11 +2213,34 @@ impl PdfCraftApp {
         if let Some(on) = v["highlight_fields"].as_bool() {
             self.view_defaults.highlight_fields = on;
         }
-        if let Some(closed) = v["comments_panel_closed"].as_bool() {
+        let tool_preferences = &v["tool_preferences"];
+        if let Some(closed) = tool_preferences["comments_panel_closed"].as_bool().or(v["comments_panel_closed"].as_bool()) {
             self.comments_panel_closed = closed;
         }
-        if let Some(closed) = v["right_panel_closed"].as_bool() {
+        if let Some(closed) = tool_preferences["right_panel_closed"].as_bool().or(v["right_panel_closed"].as_bool()) {
             self.right_panel_closed = closed;
+        }
+        if let Ok(order) = serde_json::from_value::<Vec<String>>(tool_preferences["order"].clone()) {
+            let known: std::collections::BTreeSet<&str> = pdfcraft_engine::catalog::TOOL_GROUPS.iter().map(|g| g.id).collect();
+            let mut seen = std::collections::BTreeSet::new();
+            self.all_tools_order = order.into_iter().filter(|id| known.contains(id.as_str()) && seen.insert(id.clone())).collect();
+        }
+        if let Ok(customizations) =
+            serde_json::from_value::<std::collections::BTreeMap<String, ToolCustomization>>(tool_preferences["customizations"].clone())
+        {
+            self.tool_customizations = customizations
+                .into_iter()
+                .filter_map(|(id, mut customization)| {
+                    pdfcraft_engine::catalog::group(&id)?;
+                    if customization.icon.as_deref().is_some_and(|icon| !icons::exists(icon)) {
+                        customization.icon = None;
+                    }
+                    if customization.color.is_some_and(|color| usize::from(color) >= panels::TOOL_COLOR_COUNT) {
+                        customization.color = None;
+                    }
+                    (customization.icon.is_some() || customization.color.is_some()).then_some((id, customization))
+                })
+                .collect();
         }
         if let Some(defaults) = v["default_zoom"].as_str().and_then(|zoom| self.view_defaults.with_zoom(zoom)) {
             self.view_defaults = defaults;

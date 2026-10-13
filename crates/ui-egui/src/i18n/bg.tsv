@@ -1775,6 +1775,22 @@
 	Search tools and commands…	Търсене на инструменти и команди…
 	No matching tools	Няма съответстващи инструменти
 	All tools	Всички инструменти
+	Edit tools	Редактиране на инструменти
+	Done editing tools	Приключване на редактирането
+	Customize {tool}	Персонализиране на {tool}
+	Drag to reorder tools	Плъзнете, за да пренаредите инструментите
+	Tool icon	Икона на инструмента
+	Use default icon	Използване на иконата по подразбиране
+	Tool color	Цвят на инструмента
+	Use default color	Използване на цвета по подразбиране
+	Blue	Син
+	Teal	Тюркоазен
+	Green	Зелен
+	Orange	Оранжев
+	Red	Червен
+	Purple	Лилав
+	Pink	Розов
+	Slate	Сиво-син
 	Read	Четене
 	Convert	Конвертиране
 	E-Sign	Е-подпис
